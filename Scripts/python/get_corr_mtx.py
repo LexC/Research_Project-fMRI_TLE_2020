@@ -15,6 +15,8 @@ import fmri_tle_2020_tools as pf # pf for Project Functions
 # %% Variables and Inputs
 
 
+#######
+
 FMRI_FOLDERS_DIR = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\Coleta_NIRS_fMRI_2015-2017\\Processed_data\\fMRI'
 
 SUBJ_INFO_FILE = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Programing\\Variables_and_Data_Info\\Info_Subjects\\subjectsInformation.csv'
@@ -22,6 +24,18 @@ SUBJ_INFO_FILE = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Progr
 injuryClassifications = ['R', 'L', 'N', 'X']
 
 thresholds = list(np.arange(0.05, 0.95, 0.05))
+
+#######
+
+# This set of rois is in the MNI152 template.
+NIIBASEFILE = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Programing\\Variables_and_Data_Info\\fMRI_Processing_Var\\Shen2013.nii'
+
+SEEDB_RESULTS_FOLDER = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Seed_based_analysis'
+
+networks_names=['DMN']
+# seeds_mniloc=[[0,-51,15]] # seeds found in the literature
+seeds_mniloc=[[4,-44,15]] # location fixed to match the template
+
 
 # %% Main
 
@@ -40,18 +54,12 @@ CorrMats_Groups = pf.group_mean(CorrMats_Groups)
 CorrMats_Groups = pf.group_mean_adjmats(CorrMats_Groups, thresholds)
 
 
+# # Seed-based technique
+
+# # # Finding ROI's seeds
+rois_seeds=pf.roi_location(seeds_mniloc, NIIBASEFILE, 'mni')
+
+# # # Saving networks of Group Averages
+pf.make_seed_based_networks (CorrMats_Groups, rois_seeds, 0.3, thresholds, networks_names, NIIBASEFILE, SEEDB_RESULTS_FOLDER)
+
 # %% TESTS 
-"""
-Essa é a ideia de como fazer pra gerar as redes em .nii, agora o que falta é definir as redes/ sementes. 
-"""
-
-NIIBASEFILE = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Programing\\Variables_and_Data_Info\\fMRI_Processing_Var\\Shen2013.nii'
-
-NIISAVENAME = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Programing\\Variables_and_Data_Info\\fMRI_Processing_Var\\TEST.nii'
-
-SEED = 120
-
-network=CorrMats_Groups[0].adjMats[thresholds.index(0.3)][SEED,:]*100
-
-
-pf.make_nii_network(NIIBASEFILE, network, NIISAVENAME)

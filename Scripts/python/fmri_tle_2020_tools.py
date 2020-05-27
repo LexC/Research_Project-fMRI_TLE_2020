@@ -16,14 +16,14 @@ import nibabel as nib
 
 class CorrMap: # pylint: disable=too-few-public-methods
     """ DESCRIÇÃO
-    
+
     The folders containing the files must fall the satandad structure:
     [...]\\Protocolo_xx\\Ys\\Processed\\Y_Y_x\\Y_Y_xx_xx\\Correlation_map
 where x are single numbers and Y are strings. Exemple:
     [...]\\Protocolo_02\\Patients\\Processed\\PRS_ASL_12\\PRS_ASL_12_02\\
     Correlation_map
     """
-    
+
     def __init__(self, matricesfilesdir, subj_info):
 
         mat = sio.loadmat(matricesfilesdir)
@@ -92,7 +92,7 @@ def get_matrices_files_dir(fmri_foldersdir):
 
 def subjects_information(subj_infofile):
     """Reads and save the subjects information
-    
+
     The information file must be a csv file with 4 colluns:
     Protocol, Type, Number, Injury Side
         Protocal=1 or 2
@@ -121,7 +121,8 @@ def load_subjects_correlation_matrices(matricesfilesdir, subj_info):
 
 
 def group_data_3darray(corrmats, injury):
-    """ Group all the Correlation Matrices of a group in one 3D array. If injury is not defined, it will group all matrices. """
+    """ Group all the Correlation Matrices of a group in one 3D array. If injury is not defined,
+    it will group all matrices. """
     group = []
     if "injury" in locals():
         for x in corrmats:
@@ -195,3 +196,98 @@ def make_nii_network(niifiledir, network, savename):
     nib.save(img, savename)
 
     return img
+
+
+def mni2cor(mni, niifiledir):
+    """ DESCRIÇÃO """
+    img = nib.load(niifiledir)
+    mni = np.array(mni)
+
+    if len(mni.shape) > 1:
+
+        mnifix = []
+        for x in mni:
+            mnifix += [np.append(x, 1)]
+        mnifix = np.array(mnifix)
+
+        coordinate = mnifix.dot(np.transpose(np.linalg.inv(img.affine)))
+        return np.array(np.round(coordinate[:, 0:3]), dtype=int)
+
+    else:
+
+        mnifix = np.array(np.append(mni, 1))
+
+        coordinate = mnifix.dot(np.transpose(np.linalg.inv(img.affine)))
+        return np.array(np.round(coordinate[0:3]), dtype=int)
+
+
+def cor2mni(cor, niifiledir):
+    """ DESCRIÇÃO """
+    img = nib.load(niifiledir)
+    cor = np.array(cor)
+
+    if len(cor.shape) > 1:
+        corfix = []
+        for x in cor:
+            corfix += [np.append(x, 1)]
+        corfix = np.array(corfix)
+
+        aux = np.array(img.affine)
+        coordinate = np.transpose(aux.dot(np.transpose(corfix)))
+        return np.array(np.round(coordinate[:, 0:3]), dtype=int)
+
+    else:
+        corfix = np.array(np.append(cor, 1))
+
+        aux = np.array(img.affine)
+        mni = np.transpose(aux.dot(np.transpode(corfix)))
+        return np.array(np.round(mni[0:3]), dtype=int)
+
+
+def roi_location(coor, niifiledir, coortype):
+    """ DESCRIÇÃO """
+
+    img = nib.load(niifiledir)
+    mtx = img.get_fdata()
+
+    if coortype == 'mni':
+        coor = mni2cor(coor,niifiledir)
+    else:
+        coor=np.array(coor)
+
+    if len(coor.shape) > 1:
+        rois = []
+        for x in coor:
+            rois += [int(mtx[x[0], x[1], x[2]])]
+    else:
+        rois = [int(mtx[coor[0], coor[1], coor[2]])]
+
+    return rois
+
+
+def make_seed_based_networks (CorrMats_Groups, seed, threshold, thresholds_list, netnames, NIIFILEDIR, SAVEFOLDER):
+    """ DESCRIÇÃO """
+    
+    threshold_index = thresholds_list.index(threshold)
+
+    for i,s in enumerate(seed):
+        
+        seed_network = [0 for i in CorrMats_Groups[0].adjMats[threshold_index][s]]
+        seed_network[s] = 1
+        make_nii_network(NIIFILEDIR, seed_network, SAVEFOLDER + '\\' + netnames[i] + '_seed.nii')
+        for y in CorrMats_Groups:
+            network = y.adjMats[threshold_index][s]
+            
+            if y.injury_side == 'X':
+                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group1' + y.injury_side + '.nii'
+            elif y.injury_side == 'L':
+                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group2' + y.injury_side + '.nii'
+            elif y.injury_side == 'R':
+                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group3' + y.injury_side + '.nii'
+            elif y.injury_side == 'N':
+                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group4' + y.injury_side + '.nii'
+
+
+            make_nii_network(NIIFILEDIR, network, SAVENAME)
+
+
