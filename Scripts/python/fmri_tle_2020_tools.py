@@ -273,10 +273,10 @@ def make_seed_based_networks (CorrMats_Groups, seed, threshold, thresholds_list,
     for i,s in enumerate(seed):
         
         seed_network = [0 for i in CorrMats_Groups[0].adjMats[threshold_index][s]]
-        seed_network[s] = 1
+        seed_network[s-1] = 1
         make_nii_network(NIIFILEDIR, seed_network, SAVEFOLDER + '\\' + netnames[i] + '_seed.nii')
         for y in CorrMats_Groups:
-            network = y.adjMats[threshold_index][s]
+            network = y.adjMats[threshold_index][s-1]
             
             if y.injury_side == 'X':
                 SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group1' + y.injury_side + '.nii'

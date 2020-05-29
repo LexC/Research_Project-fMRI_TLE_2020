@@ -32,10 +32,8 @@ NIIBASEFILE = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Programi
 
 SEEDB_RESULTS_FOLDER = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Seed_based_analysis'
 
-networks_names=['DMN']
-# seeds_mniloc=[[0,-51,15]] # seeds found in the literature
-seeds_mniloc=[[4,-44,15]] # location fixed to match the template
-
+networks_names=['DMN','SMOTOR','VISUAL','AUDIT','DAN_L','DAN_R','ECN_L','ECN_R']
+seeds_mniloc=[[-7,-57,18],[-25,-12,64],[-3,-85,-3],[63,-12,8],[-22,-53,56],[27,-54,55],[-42,34,20],[44,36,20]]
 
 # %% Main
 
@@ -63,3 +61,6 @@ rois_seeds=pf.roi_location(seeds_mniloc, NIIBASEFILE, 'mni')
 pf.make_seed_based_networks (CorrMats_Groups, rois_seeds, 0.3, thresholds, networks_names, NIIBASEFILE, SEEDB_RESULTS_FOLDER)
 
 # %% TESTS 
+for i in range(8):
+    print(networks_names[i])
+    print(seeds_mniloc[i])

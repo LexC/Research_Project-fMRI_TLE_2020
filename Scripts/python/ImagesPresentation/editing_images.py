@@ -77,12 +77,17 @@ def saving_imgs(new_imgs,imagesfiles):
 
 # %% Variables and 
 
-IMAGESDIR = "D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Seed_based_analysis"
+IMAGESDIR = ["D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Seed_based_analysis\\AUDIT",
+             "D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Seed_based_analysis\\DMN",
+             "D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Seed_based_analysis\\ECN_L",
+             "D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Seed_based_analysis\\ECN_R",
+             "D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Seed_based_analysis\\SMOTOR",
+             "D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Seed_based_analysis\\VISUAL"]
 
 
 # %% Main
-
-imagesfiles = get_images(IMAGESDIR)
-imgs = open_imgs_ingroups(imagesfiles,4)
-new_imgs = new72imgs(imgs)
-saving_imgs(new_imgs,imagesfiles)
+for imgfolder in IMAGESDIR:
+    imagesfiles = get_images(imgfolder)
+    imgs = open_imgs_ingroups(imagesfiles,4)
+    new_imgs = new72imgs(imgs)
+    saving_imgs(new_imgs,imagesfiles)
