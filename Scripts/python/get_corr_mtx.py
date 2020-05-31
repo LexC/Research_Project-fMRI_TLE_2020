@@ -6,14 +6,14 @@ This script will:
     * Calculate Group Average Correlation Matrices
     * Make Ajacency Matrices
 """
+
 # %% Libraries
 
 import numpy as np
 import fmri_tle_2020_tools as pf # pf for Project Functions
 
 
-# %% Variables and Inputs
-
+# %% Variables and loads
 
 #######
 
@@ -35,7 +35,8 @@ SEEDB_RESULTS_FOLDER = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\
 networks_names=['DMN','SMOTOR','VISUAL','AUDIT','DAN_L','DAN_R','ECN_L','ECN_R']
 seeds_mniloc=[[-7,-57,18],[-25,-12,64],[-3,-85,-3],[63,-12,8],[-22,-53,56],[27,-54,55],[-42,34,20],[44,36,20]]
 
-# %% Main
+
+# %% Functions
 
 # # Cronstruct correlation matrices variable
 matricesfilesdir = pf.get_matrices_files_dir(FMRI_FOLDERS_DIR)
@@ -60,7 +61,4 @@ rois_seeds=pf.roi_location(seeds_mniloc, NIIBASEFILE, 'mni')
 # # # Saving networks of Group Averages
 pf.make_seed_based_networks (CorrMats_Groups, rois_seeds, 0.3, thresholds, networks_names, NIIBASEFILE, SEEDB_RESULTS_FOLDER)
 
-# %% TESTS 
-for i in range(8):
-    print(networks_names[i])
-    print(seeds_mniloc[i])
+#%%

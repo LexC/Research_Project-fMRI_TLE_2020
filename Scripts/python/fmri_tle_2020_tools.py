@@ -11,8 +11,7 @@ import scipy.io as sio
 import nibabel as nib
 
 
-# %% Variables Classes
-
+# %% Classes
 
 class CorrMap: # pylint: disable=too-few-public-methods
     """ DESCRIÇÃO
@@ -170,6 +169,14 @@ def group_mean_adjmats(corrmats_groups, thresholds):
 
 ####### Nifti functions (.nii)
 
+def mean_network(corrmatx,seed1,seed2):
+
+    net1=corrmatx[seed1,:]
+    net2=corrmatx[seed2,:]
+    net=np.array([net1,net2])
+    net=fisher_mean(net,1)
+
+
 
 def change_rois_values(data, network):
     """ DESCRIÇÃO """
@@ -267,17 +274,17 @@ def roi_location(coor, niifiledir, coortype):
 
 def make_seed_based_networks (CorrMats_Groups, seed, threshold, thresholds_list, netnames, NIIFILEDIR, SAVEFOLDER):
     """ DESCRIÇÃO """
-    
+
     threshold_index = thresholds_list.index(threshold)
 
     for i,s in enumerate(seed):
-        
+
         seed_network = [0 for i in CorrMats_Groups[0].adjMats[threshold_index][s]]
         seed_network[s-1] = 1
         make_nii_network(NIIFILEDIR, seed_network, SAVEFOLDER + '\\' + netnames[i] + '_seed.nii')
         for y in CorrMats_Groups:
             network = y.adjMats[threshold_index][s-1]
-            
+
             if y.injury_side == 'X':
                 SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group1' + y.injury_side + '.nii'
             elif y.injury_side == 'L':
