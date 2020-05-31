@@ -16,5 +16,14 @@ The scripts in this repository act on the Correlation Matrices, to perform indiv
 
 ### Seed-Based thechinique
 
+
+
 ![Image of DMNs](https://github.com/LexC/Research_Project-fMRI_TLE_2020/blob/master/Images/DMN.gif?raw=true)
-FIgure 1: The Default Mode Netwotk (DMN) of the Volunteers, LTLE and RTLE group analyses. On the gradient, the Pearson Correlation values of each ROI (on this image it's only shown ROIs with correlation values greater then 0.2), and on *blue* the ROI-seed used to the analyses
+FIgure 1: The Default Mode Netwotk (DMN) of the Volunteers, LTLE and RTLE group analyses. On the gradient, the Pearson Correlation values of each ROI (on this image it's only shown ROIs with correlation values greater then 0.2), and on *blue* the ROI-seed used to the analyses.
+
+
+
+
+
+##### Disclamer:
+No personal information was disclosed
