@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-asdasdasd
+
 """
 # %% Libraries
 
@@ -14,7 +14,7 @@ import nibabel as nib
 # %% Classes
 
 class CorrMap: # pylint: disable=too-few-public-methods
-    """ DESCRIÇÃO
+    """ A Class to load and arquive the fmri correlation matrices and relevant infromations.
 
     The folders containing the files must fall the satandad structure:
     [...]\\Protocolo_xx\\Ys\\Processed\\Y_Y_x\\Y_Y_xx_xx\\Correlation_map
@@ -24,7 +24,18 @@ where x are single numbers and Y are strings. Exemple:
     """
 
     def __init__(self, matricesfilesdir, subj_info):
+        """
+        matricesfilesdir = str(matrix diretory)
+        subj_info = list(subjects informations)
 
+        Output:
+            self.map = np.array( Correlation Matrices)
+            self.protocol = int()
+            self.subj_type = str(Normaly Patient or Volunteer)
+            self.subj_number = int()
+            self.subj_run = int()
+            self.injury = str()
+        """
         mat = sio.loadmat(matricesfilesdir)
         self.map = mat['map']
 
@@ -41,17 +52,27 @@ where x are single numbers and Y are strings. Exemple:
 
 
 class GroupCorrMap: # pylint: disable=too-few-public-methods
-    """ DESCRIÇÃO """
+    """ A class to group the correlatin Matrices"""
 
     def __init__(self, CorrMat, injuryClassification):
 
-        self.group = CorrMat
+
+        self.group = group_data_3darray(CorrMat, injuryClassification)
         self.injury_side = injuryClassification
 
+    def group_mean (self):
+
+        self.group_mean = fisher_mean(self.group, 0)
+
+    def group_mean_adjmats (self,thresholds):
+
+        self.adjmats = []
+        for r in thresholds:
+            self.adjmats += [adjacency_matrices(self.group_mean, r)]
 
 # %% Functions
 
-####### Math
+####### Math ------------------------------------
 
 
 def ztransform(r):
@@ -75,12 +96,40 @@ def fisher_mean(array, dim):
     return array
 
 
+def transform_coor_space(cor, transform_matrix,transform_direction):
+    """
+    Transform coordenates space
 
-####### Getting Data
+    coor = list[0:2] -> coordenates
+    transform_matrix = nympy.ndarry(), .shape =(4, 4) -> Transformation matrix
+    transform_direction = 0 or 1 - > 0 for direct transformation, 1 for inverse transformation.
+
+    output: list[0:2]
+ """
+    cor = np.array(cor)
+
+    corfix = np.array(np.append(cor, 1))
+
+
+    #mni2coor
+    if transform_direction == 0:
+        new_cor = corfix.dot(np.transpose(np.linalg.inv(transform_matrix)))
+    #cor2mni
+    else:
+        new_cor = np.transpose(transform_matrix.dot(np.transpode(corfix)))
+
+    return np.array(np.round(new_cor[0:3]), dtype=int)
+
+
+
+####### Getting Data ------------------------------------
 
 
 def get_matrices_files_dir(fmri_foldersdir):
-    """Return a list with the files location of all relevant matrices"""
+    """Return a list with the files location of all relevant matrices
+
+    fmri_foldersdir = str(folder diretory)
+    """
     filesdir = []
     for root, subfolder, files in os.walk(fmri_foldersdir):
         for filename in files:
@@ -90,7 +139,9 @@ def get_matrices_files_dir(fmri_foldersdir):
 
 
 def subjects_information(subj_infofile):
-    """Reads and save the subjects information
+    """Reads and save subjects informations
+
+    subj_infofile = str(folder diretory)
 
     The information file must be a csv file with 4 colluns:
     Protocol, Type, Number, Injury Side
@@ -108,7 +159,11 @@ def subjects_information(subj_infofile):
 
 
 def load_subjects_correlation_matrices(matricesfilesdir, subj_info):
-    """ Make a variable with all the Correlation matrices and subject information """
+    """ Make a variable with all the Correlation matrices and subject information
+
+    matricesfilesdir = list(matrices diretories), from get_matrices_files_dir
+    subj_info = list(subjects informations), from subjects_information
+    """
     corrmatrices = []
     for x in matricesfilesdir:
         corrmatrices += [CorrMap(x, subj_info)]
@@ -116,12 +171,18 @@ def load_subjects_correlation_matrices(matricesfilesdir, subj_info):
 
 
 
-####### Grouping data and analyses: step 1
+####### Grouping data and analyses ------------------------------------
 
 
 def group_data_3darray(corrmats, injury):
-    """ Group all the Correlation Matrices of a group in one 3D array. If injury is not defined,
-    it will group all matrices. """
+    """
+    Group all the Correlation Matrices of a group in one 3D array. If injury is not defined, it will group all matrices.
+
+    corrmats = list(class CorrMap), from load_subjects_correlation_matrices
+    injury = str()
+
+    Outuput: np.array(), shape =(3,:,:)
+    """
     group = []
     if "injury" in locals():
         for x in corrmats:
@@ -134,52 +195,57 @@ def group_data_3darray(corrmats, injury):
 
 
 def grouping_corrmaps(corrmats, injury_classifications):
-    """ DESCRIÇÃO """
+    """
+    corrmats = list(class CorrMap), from load_subjects_correlation_matrices
+    injury_classifications = list(str())
+
+    Output: list (class GroupCorrMap)
+    """
     corrmats_groups = []
 
     for  x in injury_classifications:
-        corrmats_groups += [GroupCorrMap(group_data_3darray(corrmats, x), x)]
-    return corrmats_groups
+        # corrmats_groups += [GroupCorrMap(group_data_3darray(corrmats, x), x)]
+        corrmats_groups += [GroupCorrMap(corrmats, x)]
 
 
-def group_mean(corrmats_groups):
-    """ DESCRIÇÃO """
-    for i, x in enumerate(corrmats_groups):
-        corrmats_groups[i].group_mean = fisher_mean(x.group, 0)
     return corrmats_groups
 
 
 def adjacency_matrices(matrix, threshold):
-    """ DESCRIÇÃO """
-    aux = np.array(matrix)
-    aux[matrix >= threshold] = 1
-    aux[matrix < threshold] = 0
-    return aux
+    """ Returns an adjacency matrix based on a threshold"""
+    adjmtx = np.array(matrix)
+    adjmtx[matrix >= threshold] = 1
+    adjmtx[matrix < threshold] = 0
+    return adjmtx
 
 
-def group_mean_adjmats(corrmats_groups, thresholds):
-    """ DESCRIÇÃO """
-    for i, x in enumerate(corrmats_groups):
-        corrmats_groups[i].adjMats = []
-        for r in thresholds:
-            corrmats_groups[i].adjMats += [adjacency_matrices(x.group_mean, r)]
+
+def group_parameters(corrmats_groups, thresholds):
+    """
+    Return the mean correlation matrix of each group from the list and adjacency matrices based on a range of threshold
+
+    corrmats_groups = list(class GroupCorrMap)
+    thresholds = list(int())
+
+    Output: list(class GroupCorrMap)
+        added structures:
+            .group_mean
+            .adjmats
+    """
+    for x in corrmats_groups:
+        x.group_mean()
+        x.group_mean_adjmats(thresholds)
+
     return corrmats_groups
 
 
 
-####### Nifti functions (.nii)
-
-def mean_network(corrmatx,seed1,seed2):
-
-    net1=corrmatx[seed1,:]
-    net2=corrmatx[seed2,:]
-    net=np.array([net1,net2])
-    net=fisher_mean(net,1)
+####### Nifti functions (.nii) ------------------------------------
 
 
 
 def change_rois_values(data, network):
-    """ DESCRIÇÃO """
+    """ Alters the the roi's valeus (roi's IDs) to the values of the network, Assuming IDs are continuous integers and ranging from 0."""
     for i in range(1, int(data.max())+1):
         data[data == i] = network[i-1]
     return data
@@ -205,62 +271,25 @@ def make_nii_network(niifiledir, network, savename):
     return img
 
 
-def mni2cor(mni, niifiledir):
-    """ DESCRIÇÃO """
-    img = nib.load(niifiledir)
-    mni = np.array(mni)
-
-    if len(mni.shape) > 1:
-
-        mnifix = []
-        for x in mni:
-            mnifix += [np.append(x, 1)]
-        mnifix = np.array(mnifix)
-
-        coordinate = mnifix.dot(np.transpose(np.linalg.inv(img.affine)))
-        return np.array(np.round(coordinate[:, 0:3]), dtype=int)
-
-    else:
-
-        mnifix = np.array(np.append(mni, 1))
-
-        coordinate = mnifix.dot(np.transpose(np.linalg.inv(img.affine)))
-        return np.array(np.round(coordinate[0:3]), dtype=int)
-
-
-def cor2mni(cor, niifiledir):
-    """ DESCRIÇÃO """
-    img = nib.load(niifiledir)
-    cor = np.array(cor)
-
-    if len(cor.shape) > 1:
-        corfix = []
-        for x in cor:
-            corfix += [np.append(x, 1)]
-        corfix = np.array(corfix)
-
-        aux = np.array(img.affine)
-        coordinate = np.transpose(aux.dot(np.transpose(corfix)))
-        return np.array(np.round(coordinate[:, 0:3]), dtype=int)
-
-    else:
-        corfix = np.array(np.append(cor, 1))
-
-        aux = np.array(img.affine)
-        mni = np.transpose(aux.dot(np.transpode(corfix)))
-        return np.array(np.round(mni[0:3]), dtype=int)
-
-
 def roi_location(coor, niifiledir, coortype):
-    """ DESCRIÇÃO """
+    """
+    Return the ROI's number value (ID). The nifti file must be in agreement with the coordinates.
+
+    coor = list[n][0:2] -> coordenates
+    niifiledir = str() -> diretory of the nii file with ROIs informations
+    coortype = 'mni' or 'cor'
+
+    Output: list(int())
+    """
 
     img = nib.load(niifiledir)
     mtx = img.get_fdata()
+    coor=np.array(coor)
 
     if coortype == 'mni':
-        coor = mni2cor(coor,niifiledir)
-    else:
-        coor=np.array(coor)
+        #coor = mni2cor(coor,niifiledir)
+        for i,x in enumerate(coor):
+            coor[i] = transform_coor_space(x, img.affine,0)
 
     if len(coor.shape) > 1:
         rois = []
@@ -273,17 +302,19 @@ def roi_location(coor, niifiledir, coortype):
 
 
 def make_seed_based_networks (CorrMats_Groups, seed, threshold, thresholds_list, netnames, NIIFILEDIR, SAVEFOLDER):
-    """ DESCRIÇÃO """
+    """ Save nifti files of networks for the Group analyses """
 
     threshold_index = thresholds_list.index(threshold)
 
     for i,s in enumerate(seed):
 
-        seed_network = [0 for i in CorrMats_Groups[0].adjMats[threshold_index][s]]
+        # Save a nii file with the seed
+        seed_network = [0 for i in CorrMats_Groups[0].adjmats[threshold_index][s]]
         seed_network[s-1] = 1
         make_nii_network(NIIFILEDIR, seed_network, SAVEFOLDER + '\\' + netnames[i] + '_seed.nii')
+
         for y in CorrMats_Groups:
-            network = y.adjMats[threshold_index][s-1]
+            network = y.adjmats[threshold_index][s-1]
 
             if y.injury_side == 'X':
                 SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group1' + y.injury_side + '.nii'
