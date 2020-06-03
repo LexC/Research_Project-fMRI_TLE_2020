@@ -10,6 +10,8 @@ import numpy as np
 import scipy.io as sio
 import nibabel as nib
 
+from nilearn import plotting
+
 
 # %% Classes
 
@@ -24,13 +26,14 @@ class CoorMatrices:
         self.filesdir = matricesfilesdir
         self.raw_data = None
         self.group_by_injury = None
+        self.group_by_subject = None
 
 
     def get_raw_data(self, subj_info):
         """ Make a variable with all the Correlation matrices and subject information
 
         matricesfilesdir = list(matrices diretories), from get_matrices_files_dir
-        subj_info = list(subjects informations), from subjects_information
+        subj_info = list(subjects informations), from get_csv_information
         """
         corrmatrices = []
         for x in self.filesdir:
@@ -48,6 +51,8 @@ class CoorMatrices:
             """
             matricesfilesdir = str(matrix diretory)
             subj_info = list(subjects informations)
+
+
 
             Output:
                 self.map = np.array( Correlation Matrices)
@@ -72,6 +77,9 @@ class CoorMatrices:
                     self.injury = i[3]
 
 
+####### Grouping data by injury  ------------------------------------
+
+
     def get_group_by_injury(self, injury_classifications, thresholds=list(np.arange(0.05, 0.95, 0.05))):
         """ DESCRIÇÃO """
         corrmats_groups = []
@@ -82,6 +90,8 @@ class CoorMatrices:
         self.group_by_injury = corrmats_groups
 
         return self
+
+
 
     class Injury:
         """ DESCRIÇÃO """
@@ -95,6 +105,61 @@ class CoorMatrices:
             self.adjmats = []
             for r in thresholds:
                 self.adjmats += [adjacency_matrices(self.group_mean, r)]
+
+
+####### Grouping data by volunteer ------------------------------------
+
+
+    def get_group_by_subject(self, thresholds=list(np.arange(0.05, 0.95, 0.05))):
+
+        i=0
+        vollist=[]
+        while i<len(self.raw_data):
+
+            aux = [i]
+
+            for j in range(i+1,len(self.raw_data)):
+
+                aux1=self.raw_data[i]
+                aux1=[aux1.protocol, aux1.subj_type, aux1.subj_number]
+
+                aux2=self.raw_data[j]
+                aux2=[aux2.protocol, aux2.subj_type, aux2.subj_number]
+
+                if aux1 == aux2:
+                    aux += [j]
+
+                else:
+                    vollist+=[aux]
+                    i=j-1
+                    break
+            i+=1
+
+        subjs=[]
+        for x in vollist:
+            subjs += [CoorMatrices.Subject(self.raw_data, x, thresholds)]
+
+        self.group_by_subject=subjs
+        return self
+
+    class Subject:
+        """ DESCRIÇÃO """
+        def __init__(self,raw_data,vollist, thresholds):
+
+            self.protocol = raw_data[vollist[0]].protocol
+            self.subj_type = raw_data[vollist[0]].subj_type
+            self.subj_number = raw_data[vollist[0]].subj_number
+            self.injury = raw_data[vollist[0]].injury
+
+            self.runs=group_data_3darray_bynumber(raw_data, vollist)
+
+            self.runs_mean = fisher_mean(self.runs, 0)
+
+            self.adjmats = []
+            for r in thresholds:
+                self.adjmats += [adjacency_matrices(self.runs_mean, r)]
+
+
 
 # %% Functions
 
@@ -164,18 +229,13 @@ def get_matrices_files_dir(fmri_foldersdir):
     return filesdir
 
 
-def subjects_information(subj_infofile):
-    """Reads and save subjects informations
+def get_csv_information(subj_infofile):
+    """
+    Reads and retuns a list of each line contained in the csv file.
 
-    subj_infofile = str(folder diretory)
+    subj_infofile = str(CSV diretory)
 
-    The information file must be a csv file with 4 colluns:
-    Protocol, Type, Number, Injury Side
-        Protocal=1 or 2
-        Type = Patient or Volunteer
-        Number = the subject #ID
-        Injury Side = R,L,B,N,U and X for respectively Right, Left, Both,
-                    Neither, Undefined and Not a TLE Patient
+    Output: list(list())
     """
     subj_info = []
     with open(subj_infofile, 'r') as csv_subjinfo:
@@ -212,8 +272,17 @@ def adjacency_matrices(matrix, threshold):
     return adjmtx
 
 
+def group_data_3darray_bynumber(corrmats, subjnumb):
+    """
 
-####### Nifti functions (.nii) ------------------------------------
+    """
+    group = []
+    for i in subjnumb:
+        group += [corrmats[i].map]
+    return np.array(group)
+
+
+####### Seed-Based / Nifti functions (.nii) --------------------------------
 
 
 
@@ -300,3 +369,61 @@ def make_seed_based_networks(coormats, seed, threshold, thresholds_list, netname
 
 
             make_nii_network(NIIFILEDIR, network, SAVENAME)
+
+
+#%% ####### Grapht Theory ------------------------------------
+
+
+
+def graphs_for_all(coormats,MNICOORDIR,SAVEDIR,thresholds,subj_start=0):
+
+    path = os.getcwd()
+    os.chdir(SAVEDIR)
+
+    mnicoor = np.array(get_csv_information(MNICOORDIR),dtype=int)
+
+    for i, subj in enumerate(coormats.group_by_subject, ):
+
+        if i >= subj_start:
+            if int(subj.subj_number) < 10:
+                subj_folder = 'prot'+ str(subj.protocol) + '_' + subj.subj_type + subj.injury + '_0' + str(subj.subj_number)
+            else:
+                subj_folder = 'prot'+ subj.protocol + '_' + subj.subj_type + subj.injury + '_' + subj.subj_number
+
+
+            if not os.path.exists(subj_folder):
+                os.makedirs(subj_folder)
+
+            print('-'*40)
+            print("Ploting ",str(i)," subj "+subj_folder)
+            save_graphs_models(subj,subj_folder,mnicoor,thresholds)
+
+    os.chdir(path)
+
+    return None
+
+
+
+def save_graphs_models(subj,subj_folder,mnicoor,thresholds):
+
+    for i,r in enumerate(thresholds):
+        correlation_matrix=subj.adjmats[i]
+
+        aux=int(round(thresholds[i]*100))
+
+        if aux<10:
+            aux = '0'+ str(aux)
+        else:
+            aux = str(aux)
+
+        print('r='+aux+',',end = ' ')
+        SAVEIMAGENAME = subj_folder + "\\" + subj_folder+'_r'+aux+'.png'
+
+        plotting.plot_connectome(correlation_matrix, mnicoor, colorbar=False,
+                                  node_color='black',
+                                  edge_vmin=0, edge_vmax=1,
+                                  node_size=10,display_mode="lzry",
+                                  title='r=.'+aux,
+                                  output_file=SAVEIMAGENAME)
+
+    return None

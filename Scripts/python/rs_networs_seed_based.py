@@ -11,7 +11,7 @@ This script will:
 # %% Libraries
 
 import numpy as np
-import fmri_tle_2020_tools_v2 as pf # pf for "Project Functions"
+import fmri_tle_2020_tools as pf # pf for "Project Functions"
 
 
 # %% Variables and loads
@@ -40,7 +40,18 @@ seeds_mniloc = [[-7, -57, 18], [-25, -12, 64], [-3, -85, -3], [63, -12, 8], [-22
 
 # # Cronstructing correlation matrices variable
 matricesfilesdir = pf.get_matrices_files_dir(FMRI_FOLDERS_DIR)
-subjInfo = pf.subjects_information(SUBJ_INFO_FILE)
+subjInfo = pf.get_csv_information(SUBJ_INFO_FILE)
+"""Reads and save subjects informations
+
+subj_infofile = str(folder diretory)
+
+The information file must be a csv file with 4 colluns:
+Protocol, Type, Number, Injury Side
+    Protocal=1 or 2
+    Type = Patient or Volunteer
+    Number = the subject #ID
+    Injury Side = R,L,B,N,U and X for respectively Right, Left, Both, Neither, Undefined and Not a TLE Patient
+"""
 
 CorrMats = pf.CoorMatrices(matricesfilesdir)
 CorrMats = CorrMats.get_raw_data(subjInfo)
@@ -56,4 +67,4 @@ CorrMats = CorrMats.get_group_by_injury(injuryClassifications)
 rois_seeds = pf.roi_location(seeds_mniloc, NIIBASEFILE, 'mni')
 
 # # # Calculating and saving networks of Group Averages
-pf.make_seed_based_networks(CorrMats.group_by_injury, rois_seeds, 0.3, thresholds, networks_names, NIIBASEFILE, SEEDB_RESULTS_FOLDER)
+# pf.make_seed_based_networks(CorrMats.group_by_injury, rois_seeds, 0.3, thresholds, networks_names, NIIBASEFILE, SEEDB_RESULTS_FOLDER)

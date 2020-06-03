@@ -15,36 +15,52 @@ import fmri_tle_2020_tools as pf # pf for "Project Functions"
 
 # %% Variables and loads
 
+
 ####### Correlation Matrices and grouping
+
 FMRI_FOLDERS_DIR = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\Coleta_NIRS_fMRI_2015-2017\\Processed_data\\fMRI'
 
 SUBJ_INFO_FILE = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Programing\\Variables_and_Data_Info\\Info_Subjects\\subjectsInformation.csv'
 
-injuryClassifications = ['R', 'L', 'N', 'X']
 
-thresholds = list(np.arange(0.05, 0.95, 0.05))
+####### Calculations
+# thresholds = list(np.arange(0.05, 1, 0.05))
+thresholds = list(np.arange(0.35, 1, 0.05))
 
-####### Seed-Based Variables
 
-# This set of rois is in the MNI152 template.
-NIIBASEFILE = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Programing\\Variables_and_Data_Info\\fMRI_Processing_Var\\Shen2013.nii'
+####### Graph Theory
 
-SEEDB_RESULTS_FOLDER = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Seed_based_analysis'
+MNI_COOR_DIR = "D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Programing\\Variables_and_Data_Info\\fMRI_Processing_Var\\Shen2013_mnicoor.csv"
 
+GRAPHS_SAVES_DIR = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Graphs\\Step1'
 
 
 # %% Main
 
 # # Cronstructing correlation matrices variable
 matricesfilesdir = pf.get_matrices_files_dir(FMRI_FOLDERS_DIR)
-subjInfo = pf.subjects_information(SUBJ_INFO_FILE)
-CorrMats = pf.load_subjects_correlation_matrices(matricesfilesdir, subjInfo)
+subjInfo = pf.get_csv_information(SUBJ_INFO_FILE)
+"""Reads and save subjects informations
+
+subj_infofile = str(folder diretory)
+
+The information file must be a csv file with 4 colluns:
+Protocol, Type, Number, Injury Side
+    Protocal=1 or 2
+    Type = Patient or Volunteer
+    Number = the subject #ID
+    Injury Side = R,L,B,N,U and X for respectively Right, Left, Both, Neither, Undefined and Not a TLE Patient
+"""
+
+coormats = pf.CoorMatrices(matricesfilesdir)
+coormats = coormats.get_raw_data(subjInfo)
 
 
-# # Separeting Groups and creating
-CorrMats_Groups = pf.grouping_corrmaps(CorrMats, injuryClassifications)
+# # Separeting Groups and Calculating Group Mean and Adjacency Matrices of the Correlation Matrices
+coormats = coormats.get_group_by_subject(thresholds)
+
+# #
+pf.graphs_for_all(coormats, MNI_COOR_DIR, GRAPHS_SAVES_DIR, thresholds)
 
 
-# # Calculating Group Mean and Adjacency Matrices of the Correlation Matrices
-CorrMats_Groups = pf.group_parameters(CorrMats_Groups, thresholds)
 
