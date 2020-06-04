@@ -7,8 +7,10 @@ DESCRIÇÃO
 import os
 import csv
 import numpy as np
-import scipy.io as sio
 import nibabel as nib
+import networkx as nx
+import scipy.io as sio
+import matplotlib.pyplot as plt
 
 from nilearn import plotting
 
@@ -133,8 +135,12 @@ class CoorMatrices:
                     vollist+=[aux]
                     i=j-1
                     break
-            i+=1
 
+                if j == len(self.raw_data)-1:
+                    vollist+=[aux]
+                    i=j-1
+
+            i+=1
         subjs=[]
         for x in vollist:
             subjs += [CoorMatrices.Subject(self.raw_data, x, thresholds)]
@@ -146,6 +152,7 @@ class CoorMatrices:
         """ DESCRIÇÃO """
         def __init__(self,raw_data,vollist, thresholds):
 
+            self.thresholds = thresholds
             self.protocol = raw_data[vollist[0]].protocol
             self.subj_type = raw_data[vollist[0]].subj_type
             self.subj_number = raw_data[vollist[0]].subj_number
@@ -158,6 +165,63 @@ class CoorMatrices:
             self.adjmats = []
             for r in thresholds:
                 self.adjmats += [adjacency_matrices(self.runs_mean, r)]
+
+
+
+
+
+class LexGraphs:
+
+    def __init__(self, subj_list):
+
+        self.thresholds = subj_list[0].thresholds
+        self.degrees = None
+        self.average_degrees = None
+
+        self.graphs = []
+        for subj in subj_list:
+
+            graphs_per_threshold = []
+            for adjmats in subj.adjmats:
+
+                aux=tr_zero(adjmats)
+                graphs_per_threshold += [nx.from_numpy_array(aux)]
+
+            self.graphs += [graphs_per_threshold]
+
+
+
+    def get_degrees(self):
+
+        self.degrees = []
+
+        for subj in self.graphs:
+
+            deg_per_threshold = []
+            for graph_r in subj:
+                deg_per_threshold += [g_degree(graph_r)]
+
+            self.degrees += [deg_per_threshold]
+
+        return self
+
+
+    def get_average_degrees(self):
+
+        if 'self.degrees' not in locals():
+            self = self.get_degrees()
+
+        self.average_degrees = []
+        for degs in self.degrees:
+
+            avdeg_per_r = []
+            for deg_r in degs:
+
+                avdeg_per_r += [[np.mean(deg_r),np.std(deg_r)]]
+
+            self.average_degrees += [avdeg_per_r]
+
+        return self
 
 
 
@@ -211,6 +275,13 @@ def transform_coor_space(cor, transform_matrix, transform_direction):
 
     return np.array(np.round(new_cor[0:3]), dtype=int)
 
+
+def tr_zero(adjmat):
+
+    for i in range(len(adjmat)):
+        adjmat[i,i]=0
+
+    return adjmat
 
 
 ####### Getting Data ------------------------------------
@@ -427,3 +498,84 @@ def save_graphs_models(subj,subj_folder,mnicoor,thresholds):
                                   output_file=SAVEIMAGENAME)
 
     return None
+
+
+
+def g_degree(G):
+
+    return [deg[1] for deg in G.degree()]
+
+
+def g_average_degree(G):
+
+    degrees = g_degree(G)
+
+    return [np.mean(degrees),np.std(degrees)]
+
+
+def gfigure_parameter_vs_threshold(param, thresholds, subjs, save_folder, parameter_name):
+    """
+
+    """
+
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
+              '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
+              '#bcbd22', '#17becf']
+
+
+    labels_size=30
+    for i,y in enumerate(param):
+
+
+        y_value = [j[0] for j in y]
+        y_std = [j[1] for j in y]
+
+
+        fig = plt.figure(figsize=(15, 12))
+        plt.errorbar(thresholds, y_value, y_std,
+                     marker='D', markerfacecolor = 'w', markersize=8,
+                     capsize = 5, #ecolor = 'k',
+                     ls='dotted', color = colors[0]#,dash_capstyle	='round'
+                     )
+
+
+        plt.xlim(0, 1)
+        # plt.ylim(-3, 120)
+        plt.grid()
+
+        # plt.()
+        plt.xticks(fontsize=labels_size*0.65)
+        plt.yticks(fontsize=labels_size*0.65)
+
+        plt.xlabel('Thershold', fontsize=labels_size)
+        plt.ylabel(parameter_name, fontsize=labels_size)
+
+
+        if subjs[i].subj_type == 'Patient':
+
+            plt.title(parameter_name+' -- '+subjs[i].subj_type+' '+subjs[i].subj_number+', ' +subjs[i].injury+' Injury',fontsize=labels_size)
+
+            if int(subjs[i].subj_number) < 10:
+                SAVENAME= save_folder+'\\'+parameter_name+'_'+subjs[i].subj_type+'_'+subjs[i].injury+'_0'+subjs[i].subj_number+'.png'
+            else:
+                SAVENAME= save_folder+'\\'+parameter_name+'_'+subjs[i].subj_type+'_'+subjs[i].injury+'_'+subjs[i].subj_number+'.png'
+
+        else:
+
+            plt.title(parameter_name+' -- '+subjs[i].subj_type+' '+subjs[i].subj_number,fontsize=labels_size)
+
+            if int(subjs[i].subj_number) < 10:
+                SAVENAME= save_folder+'\\'+parameter_name+'_'+subjs[i].subj_type+'_0'+subjs[i].subj_number+'.png'
+            else:
+                SAVENAME= save_folder+'\\'+parameter_name+'_'+subjs[i].subj_type+'_'+subjs[i].subj_number+'.png'
+
+
+
+        # plt.show()
+        fig.savefig(SAVENAME,format='png')
+        plt.close()
+
+    print('-'*40)
+    print('All '+parameter_name+' Figures Saved !')
+    print('-'*40)
+
