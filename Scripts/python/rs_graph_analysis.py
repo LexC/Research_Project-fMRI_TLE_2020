@@ -24,9 +24,9 @@ SUBJ_INFO_FILE = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Progr
 
 
 ####### Calculations
-# thresholds = list(np.arange(0.05, 1, 0.05))
 thresholds = list(np.arange(0.05, 1, 0.05))
-# thresholds = [0.3,0.5,0.9]
+# thresholds = [.5,.8]
+
 
 ####### Graph Theory
 
@@ -54,25 +54,32 @@ Protocol, Type, Number, Injury Side
     Injury Side = R,L,B,N,U and X for respectively Right, Left, Both, Neither, Undefined and Not a TLE Patient
 """
 
-coormats = pf.CoorMatrices(matricesfilesdir)
-coormats = coormats.get_raw_data(subjInfo)
+coormats = pf.CoorMatrices(matricesfilesdir, subjInfo)
 
 
-# # Separeting Groups and Calculating Group Mean and Adjacency Matrices of the Correlation Matrices
+# # # Separeting Groups and Calculating Group Mean and Adjacency Matrices of the Correlation Matrices
 coormats = coormats.get_group_by_subject(thresholds)
 
-# # Generate Brain Graphs images as a function of the thresholds
-# pf.graphs_for_all(coormats, MNI_COOR_DIR, GRAPHS_SAVES_DIR1, thresholds,69)
 
-# # Trnasforming Adjacency Matrices into Graphs
+# still need pandas ---------------------------
+# # # Generate Brain Graphs images as a function of the thresholds
+# pf.graphs_for_all(coormats.group_by_subject, MNI_COOR_DIR, GRAPHS_SAVES_DIR1)
+#  --------------------------------------------
+
+# # # Trnasforming Adjacency Matrices into Graphs
 G = pf.LexGraphs(coormats.group_by_subject)
 
-# # Graphs Parameters
+# # # Graphs Parameters
 G = G.get_average_degrees()
 
-# # Graphs Results
-pf.gfigure_parameter_vs_threshold(G.average_degrees, G.thresholds, coormats.group_by_subject, GRAPHS_SAVES_DIR2, 'Average_K')
+# # # Results on Figures
+
+# # # # Single Subjects
+pf.gfig_parameter_vs_threshold(G.graphs,'Average_Degrees', GRAPHS_SAVES_DIR2, 'Average K',1)
+pf.gfig_ofall_parameter_vs_threshold(G.graphs,'Average_Degrees', GRAPHS_SAVES_DIR2, 'Average K',1)
 
 
-# %%
+# # # # # Average by injury groups
+pf.gfig_averageofall_parameter_vs_threshold(G.graphs,'Degrees', GRAPHS_SAVES_DIR2, 'Average K',1)
+
 

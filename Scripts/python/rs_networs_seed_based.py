@@ -21,8 +21,6 @@ FMRI_FOLDERS_DIR = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\Coleta_NIRS_fMRI_2
 
 SUBJ_INFO_FILE = 'D:\\GD_UNICAMP\\IC_NeuroFisica\\Projetos\\fMRI_TLE_2020\\Programing\\Variables_and_Data_Info\\Info_Subjects\\subjectsInformation.csv'
 
-injuryClassifications = ['R', 'L', 'N', 'X']
-
 thresholds = list(np.arange(0.05, 0.95, 0.05))
 
 ####### Seed-Based Variables
@@ -53,12 +51,11 @@ Protocol, Type, Number, Injury Side
     Injury Side = R,L,B,N,U and X for respectively Right, Left, Both, Neither, Undefined and Not a TLE Patient
 """
 
-CorrMats = pf.CoorMatrices(matricesfilesdir)
-CorrMats = CorrMats.get_raw_data(subjInfo)
+CorrMats = pf.CoorMatrices(matricesfilesdir, subjInfo)
 
 
 # # Separeting Groups and Calculating Group Mean and Adjacency Matrices of the Correlation Matrices
-CorrMats = CorrMats.get_group_by_injury(injuryClassifications)
+CorrMats = CorrMats.get_group_by_injury(thresholds)
 
 
 # # Seed-based technique
@@ -67,4 +64,4 @@ CorrMats = CorrMats.get_group_by_injury(injuryClassifications)
 rois_seeds = pf.roi_location(seeds_mniloc, NIIBASEFILE, 'mni')
 
 # # # Calculating and saving networks of Group Averages
-# pf.make_seed_based_networks(CorrMats.group_by_injury, rois_seeds, 0.3, thresholds, networks_names, NIIBASEFILE, SEEDB_RESULTS_FOLDER)
+# pf.make_seed_based_networks(CorrMats.group_by_injury, rois_seeds, 0.3, networks_names, NIIBASEFILE, SEEDB_RESULTS_FOLDER)

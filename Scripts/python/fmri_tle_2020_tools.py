@@ -7,6 +7,7 @@ DESCRIÇÃO
 import os
 import csv
 import numpy as np
+import pandas as pd
 import nibabel as nib
 import networkx as nx
 import scipy.io as sio
@@ -21,150 +22,122 @@ class CoorMatrices:
     """
     DESCRIÇÃO
     """
-    def __init__(self, matricesfilesdir):
+    def __init__(self, matricesfilesdir,subj_info):
         """
         DESCRIÇÃO
         """
-        self.filesdir = matricesfilesdir
-        self.raw_data = None
+        # self.filesdir = matricesfilesdir
+        # self.data = None
         self.group_by_injury = None
         self.group_by_subject = None
 
+        subj_data = {'ID':[],'Protocol':[],'Type':[],'Injury':[],
+             'Number':[],'Run':[],'CorrMatrix':[],'FileDir':[]}
 
-    def get_raw_data(self, subj_info):
-        """ Make a variable with all the Correlation matrices and subject information
+        subj_data['FileDir']=matricesfilesdir
 
-        matricesfilesdir = list(matrices diretories), from get_matrices_files_dir
-        subj_info = list(subjects informations), from get_csv_information
-        """
-        corrmatrices = []
-        for x in self.filesdir:
-            corrmatrices += [CoorMatrices.DataAndInfo(x, subj_info)]
+        for i,file in enumerate(subj_data['FileDir']):
+            # corrmatrices += [CoorMatrices.DataAndInfo(x, subj_info)]
 
-        self.raw_data = corrmatrices
-
-        return self
-
-    class DataAndInfo:
-        """
-        DESCRIÇÃO
-        """
-        def __init__(self, matricesfilesdir, subj_info):
-            """
-            matricesfilesdir = str(matrix diretory)
-            subj_info = list(subjects informations)
+            mat = sio.loadmat(file)
+            subj_data['CorrMatrix'] += [mat['map']]
 
 
+            file = file.split('\\')
 
-            Output:
-                self.map = np.array( Correlation Matrices)
-                self.protocol = int()
-                self.subj_type = str(Normaly Patient or Volunteer)
-                self.subj_number = int()
-                self.subj_run = int()
-                self.injury = str()
-            """
-            mat = sio.loadmat(matricesfilesdir)
-            self.map = mat['map']
+            subj_data['Protocol'] += [str(int(file[-7].split('_')[1]))]
+            subj_data['Type'] += [file[-6][0:-1]]
+            subj_data['Number'] += [str(int(file[-3].split('_')[-2]))]
+            subj_data['Run'] += [str(int(file[-3].split('_')[-1]))]
 
-            matricesfilesdir = matricesfilesdir.split('\\')
+            subj_data['ID'] += [subj_data['Protocol'][i] + '_' + subj_data['Type'][i][0] + subj_data['Number'][i]+ '_' +subj_data['Run'][i]]
 
-            self.protocol = str(int(matricesfilesdir[-7].split('_')[1]))
-            self.subj_type = matricesfilesdir[-6][0:-1]
-            self.subj_number = str(int(matricesfilesdir[-3].split('_')[-2]))
-            self.subj_run = str(int(matricesfilesdir[-3].split('_')[-1]))
+            for j in subj_info:
+                if j[0:3] == [subj_data['Protocol'][i], subj_data['Type'][i],
+                              subj_data['Number'][i]]:
+                    subj_data['Injury'] += j[3]
 
-            for i in subj_info:
-                if i[0:3] == [self.protocol, self.subj_type, self.subj_number]:
-                    self.injury = i[3]
+        subj_data=pd.DataFrame(subj_data)
+        subj_data=subj_data.set_index('ID')
+
+        self.data = subj_data
+
 
 
 ####### Grouping data by injury  ------------------------------------
 
-
-    def get_group_by_injury(self, injury_classifications, thresholds=list(np.arange(0.05, 0.95, 0.05))):
+    def get_group_by_injury(self, thresholds=list(np.arange(0.05, 0.95, 0.05))):
         """ DESCRIÇÃO """
-        corrmats_groups = []
 
-        for x in injury_classifications:
-            corrmats_groups += [CoorMatrices.Injury(self.raw_data, x, thresholds)]
+        injuryset=list(set(self.data['Injury']))
 
-        self.group_by_injury = corrmats_groups
+        group_by_injury = {'Injury':[],'Type':[],'3DMatrix':[],
+             'GroupMean':[],'Thresholds':[],'AdjMats':[]}
+
+        for i,injury in enumerate(injuryset):
+
+            group_by_injury['Type'] += [self.data[self.data['Injury']==injury]['Type'][0]]
+            group_by_injury['3DMatrix'] += [pandascolumn_to_nparray(self.data[(self.data['Injury']==injury)]['CorrMatrix'])]
+
+            group_by_injury['Injury'] += injury
+
+            group_by_injury['GroupMean'] += [fisher_mean(group_by_injury['3DMatrix'][i], 0)]
+
+            group_by_injury['Thresholds'] += [thresholds]
+
+            adjmats = []
+            for r in thresholds:
+                adjmats += [adjacency_matrices(group_by_injury['GroupMean'][i], r)]
+
+            group_by_injury['AdjMats'] += [adjmats]
+
+        group_by_injury=pd.DataFrame(group_by_injury)
+        group_by_injury=group_by_injury.set_index('Injury')
+
+        self.group_by_injury = group_by_injury
 
         return self
 
 
 
-    class Injury:
-        """ DESCRIÇÃO """
-        def __init__(self, data, injuryClassification, thresholds):
-
-            self.group = group_data_3darray_injury(data, injuryClassification)
-            self.injury_side = injuryClassification
-
-            self.group_mean = fisher_mean(self.group, 0)
-
-            self.adjmats = []
-            for r in thresholds:
-                self.adjmats += [adjacency_matrices(self.group_mean, r)]
-
-
-####### Grouping data by volunteer ------------------------------------
-
+####### Grouping data by subject ------------------------------------
 
     def get_group_by_subject(self, thresholds=list(np.arange(0.05, 0.95, 0.05))):
 
-        i=0
-        vollist=[]
-        while i<len(self.raw_data):
 
-            aux = [i]
+        group_by_subject = {'Protocol':[],'Type':[],'Injury':[],'Number':[],
+                           '3DMatrix':[],'RunsMean':[],'Thresholds':[],'AdjMats':[]}
 
-            for j in range(i+1,len(self.raw_data)):
+        for prot in set(self.data['Protocol']):
+            for typ in set(self.data['Type']):
+                for numb in set(self.data['Number']):
 
-                aux1=self.raw_data[i]
-                aux1=[aux1.protocol, aux1.subj_type, aux1.subj_number]
+                    subj=self.data[(self.data['Protocol'] == prot) & (self.data['Type'] == typ) & (self.data['Number'] == numb)]
+                    if subj.empty == False:
 
-                aux2=self.raw_data[j]
-                aux2=[aux2.protocol, aux2.subj_type, aux2.subj_number]
+                        group_by_subject['Protocol'] += [prot]
+                        group_by_subject['Type'] += [typ]
+                        group_by_subject['Number'] += [numb]
+                        group_by_subject['Injury'] += [subj['Injury'][0]]
 
-                if aux1 == aux2:
-                    aux += [j]
 
-                else:
-                    vollist+=[aux]
-                    i=j-1
-                    break
+                        group_by_subject['3DMatrix'] += [pandascolumn_to_nparray(subj['CorrMatrix'])]
 
-                if j == len(self.raw_data)-1:
-                    vollist+=[aux]
-                    i=j-1
+                        group_by_subject['RunsMean'] += [fisher_mean(group_by_subject['3DMatrix'][-1],0)]
 
-            i+=1
-        subjs=[]
-        for x in vollist:
-            subjs += [CoorMatrices.Subject(self.raw_data, x, thresholds)]
+                        group_by_subject['Thresholds'] += [thresholds]
 
-        self.group_by_subject=subjs
+                        adjmats = []
+                        for r in thresholds:
+                            adjmats += [adjacency_matrices(group_by_subject['RunsMean'][-1], r)]
+
+                        group_by_subject['AdjMats'] += [adjmats]
+
+        group_by_subject=pd.DataFrame(group_by_subject)
+        self.group_by_subject = group_by_subject
+
         return self
 
-    class Subject:
-        """ DESCRIÇÃO """
-        def __init__(self,raw_data,vollist, thresholds):
-
-            self.thresholds = thresholds
-            self.protocol = raw_data[vollist[0]].protocol
-            self.subj_type = raw_data[vollist[0]].subj_type
-            self.subj_number = raw_data[vollist[0]].subj_number
-            self.injury = raw_data[vollist[0]].injury
-
-            self.runs=group_data_3darray_bynumber(raw_data, vollist)
-
-            self.runs_mean = fisher_mean(self.runs, 0)
-
-            self.adjmats = []
-            for r in thresholds:
-                self.adjmats += [adjacency_matrices(self.runs_mean, r)]
 
 
 
@@ -172,60 +145,98 @@ class CoorMatrices:
 
 class LexGraphs:
 
+
     def __init__(self, subj_list):
 
-        self.thresholds = subj_list[0].thresholds
-        self.degrees = None
-        self.average_degrees = None
 
-        self.graphs = []
-        for subj in subj_list:
+        graphs = {'Graphs_per_r':[]}
+
+        for index, row in subj_list.iterrows():
 
             graphs_per_threshold = []
-            for adjmats in subj.adjmats:
+            for adjmats in row['AdjMats']:
 
                 aux=tr_zero(adjmats)
                 graphs_per_threshold += [nx.from_numpy_array(aux)]
+            graphs['Graphs_per_r'] += [graphs_per_threshold]
 
-            self.graphs += [graphs_per_threshold]
+        graphs = pd.DataFrame(graphs)
+        graphs[['Protocol','Type','Injury','Number','Thresholds']] = subj_list[['Protocol','Type','Injury','Number','Thresholds']]
 
+        self.graphs = graphs[['Protocol','Type','Injury','Number','Thresholds',
+                              'Graphs_per_r']]
 
 
     def get_degrees(self):
 
-        self.degrees = []
+        degrees = {'Degrees':[]}
 
-        for subj in self.graphs:
+        for index, row in self.graphs.iterrows():
 
             deg_per_threshold = []
-            for graph_r in subj:
+            for graph_r in row['Graphs_per_r']:
                 deg_per_threshold += [g_degree(graph_r)]
 
-            self.degrees += [deg_per_threshold]
+            degrees['Degrees'] += [deg_per_threshold]
+
+        degrees = pd.DataFrame(degrees)
+        self.graphs['Degrees'] = degrees
 
         return self
 
 
     def get_average_degrees(self):
 
-        if 'self.degrees' not in locals():
+        try:
+            self.graphs['Degrees']
+        except:
             self = self.get_degrees()
 
-        self.average_degrees = []
-        for degs in self.degrees:
+        average_degrees = {'Average_Degrees':[]}
+
+        for index, row in self.graphs.iterrows():
 
             avdeg_per_r = []
-            for deg_r in degs:
-
+            for deg_r in row['Degrees']:
                 avdeg_per_r += [[np.mean(deg_r),np.std(deg_r)]]
 
-            self.average_degrees += [avdeg_per_r]
+            average_degrees['Average_Degrees'] += [avdeg_per_r]
+
+        average_degrees = pd.DataFrame(average_degrees)
+        self.graphs['Average_Degrees'] = average_degrees
 
         return self
 
 
 
 # %% Functions
+
+####### Tools ------------------------------------
+
+
+def change_char(string,old,new):
+
+    new_str=str()
+    for i in string:
+        if i in old:
+            new_str+=new
+        else:
+            new_str+=i
+
+    return new_str
+
+
+def pdcolum_normalization(graphs,param):
+
+    graphs=pd.DataFrame(graphs)
+    for index, row in graphs.iterrows():
+        aux=[]
+        for values in row[param]:
+            aux += [normalization(values,len(graphs['Graphs_per_r'][index][0].nodes))]
+        graphs[param][index]=aux
+
+    return graphs
+
 
 ####### Math ------------------------------------
 
@@ -284,6 +295,11 @@ def tr_zero(adjmat):
     return adjmat
 
 
+def normalization(array,numb):
+    aux = np.array(array)/numb
+    return aux.tolist()
+
+
 ####### Getting Data ------------------------------------
 
 
@@ -319,7 +335,7 @@ def get_csv_information(subj_infofile):
 ####### Grouping data and analyses ------------------------------------
 
 
-def group_data_3darray_injury(corrmats, injury):
+def pandascolumn_to_nparray(corrmats):
     """
     Group all the Correlation Matrices of a group in one 3D array. If injury is not defined, it will group all matrices.
 
@@ -329,9 +345,8 @@ def group_data_3darray_injury(corrmats, injury):
     Outuput: np.array(), shape =(3,:,:)
     """
     group = []
-    for x in corrmats:
-        if x.injury == injury:
-            group += [x.map]
+    for mtx in corrmats:
+            group += [mtx]
     return np.array(group)
 
 
@@ -414,29 +429,30 @@ def roi_location(coor, niifiledir, coortype):
     return rois
 
 
-def make_seed_based_networks(coormats, seed, threshold, thresholds_list, netnames, NIIFILEDIR, SAVEFOLDER):
+def make_seed_based_networks(coormats, seed, threshold, netnames, NIIFILEDIR, SAVEFOLDER):
     """ Save nifti files of networks for the Group analyses """
 
+    thresholds_list =coormats['Thresholds'][0]
     threshold_index = thresholds_list.index(threshold)
 
     for i, s in enumerate(seed):
 
         # Save a nii file with the seed
-        seed_network = [0 for i in coormats[0].adjmats[threshold_index][s]]
+        seed_network = [0 for i in range(coormats['GroupMean'][0].shape[1])]
         seed_network[s-1] = 1
         make_nii_network(NIIFILEDIR, seed_network, SAVEFOLDER + '\\' + netnames[i] + '_seed.nii')
 
-        for y in coormats:
-            network = y.adjmats[threshold_index][s-1]
+        for j,y in enumerate(coormats['AdjMats']):
+            network = y[threshold_index][s-1]
 
-            if y.injury_side == 'X':
-                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group1' + y.injury_side + '.nii'
-            elif y.injury_side == 'L':
-                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group2' + y.injury_side + '.nii'
-            elif y.injury_side == 'R':
-                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group3' + y.injury_side + '.nii'
-            elif y.injury_side == 'N':
-                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group4' + y.injury_side + '.nii'
+            if coormats.index[j] == 'X': # index = injury
+                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group1' + coormats.index[j] + '.nii'
+            elif coormats.index[j] == 'L':
+                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group2' + coormats.index[j] + '.nii'
+            elif coormats.index[j] == 'R':
+                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group3' + coormats.index[j] + '.nii'
+            elif coormats.index[j] == 'N':
+                SAVENAME = SAVEFOLDER + '\\' + netnames[i] + '_Group4' + coormats.index[j] + '.nii'
 
 
             make_nii_network(NIIFILEDIR, network, SAVENAME)
@@ -445,40 +461,45 @@ def make_seed_based_networks(coormats, seed, threshold, thresholds_list, netname
 #%% ####### Grapht Theory ------------------------------------
 
 
+####### Calculations
 
-def graphs_for_all(coormats,MNICOORDIR,SAVEDIR,thresholds,subj_start=0):
+def g_degree(G):
 
-    path = os.getcwd()
-    os.chdir(SAVEDIR)
-
-    mnicoor = np.array(get_csv_information(MNICOORDIR),dtype=int)
-
-    for i, subj in enumerate(coormats.group_by_subject, ):
-
-        if i >= subj_start:
-            if int(subj.subj_number) < 10:
-                subj_folder = 'prot'+ str(subj.protocol) + '_' + subj.subj_type + subj.injury + '_0' + str(subj.subj_number)
-            else:
-                subj_folder = 'prot'+ subj.protocol + '_' + subj.subj_type + subj.injury + '_' + subj.subj_number
+    return [deg[1] for deg in G.degree()]
 
 
-            if not os.path.exists(subj_folder):
-                os.makedirs(subj_folder)
+def g_average_degree(G):
 
-            print('-'*40)
-            print("Ploting ",str(i)," subj "+subj_folder)
-            save_graphs_models(subj,subj_folder,mnicoor,thresholds)
+    degrees = g_degree(G)
 
-    os.chdir(path)
+    return [np.mean(degrees),np.std(degrees)]
 
-    return None
 
+def g_param_pergroups(param,subjs):
+
+    groups_ids = list(set([subj.injury for subj in subjs]))
+
+    groups_type = [[]]
+    groups= [[]]
+    for i in range(len(groups_ids)-1):
+        groups_type.append([])
+        groups.append([])
+
+    for i,subj in enumerate(subjs):
+
+        groups[groups_ids.index(subj.injury)] += [param[i]]
+        groups_type[groups_ids.index(subj.injury)] = subj.subj_type
+
+    return list(zip(groups_type,groups_ids,groups))
+
+
+####### Figures
 
 
 def save_graphs_models(subj,subj_folder,mnicoor,thresholds):
 
     for i,r in enumerate(thresholds):
-        correlation_matrix=subj.adjmats[i]
+        correlation_matrix=subj[i]
 
         aux=int(round(thresholds[i]*100))
 
@@ -495,28 +516,62 @@ def save_graphs_models(subj,subj_folder,mnicoor,thresholds):
                                   edge_vmin=0, edge_vmax=1,
                                   node_size=10,display_mode="lzry",
                                   title='r=.'+aux,
-                                  output_file=SAVEIMAGENAME)
+                                   output_file=SAVEIMAGENAME)
 
     return None
 
 
 
-def g_degree(G):
-
-    return [deg[1] for deg in G.degree()]
+def graphs_for_all(coormats,MNICOORDIR,SAVEDIR,subj_start=0):
 
 
-def g_average_degree(G):
+    path = os.getcwd()
+    os.chdir(SAVEDIR)
 
-    degrees = g_degree(G)
-
-    return [np.mean(degrees),np.std(degrees)]
+    mnicoor = np.array(get_csv_information(MNICOORDIR),dtype=int)
 
 
-def gfigure_parameter_vs_threshold(param, thresholds, subjs, save_folder, parameter_name):
+    df=coormats[subj_start:]
+
+
+    for ind in df.index:
+
+        if int(df['Number'][ind]) < 10:
+            subj_folder = 'prot'+ str(df['Protocol'][ind]) + '_' + df['Type'][ind] + df['Injury'][ind] + '_0' + str(df['Number'][ind])
+        else:
+            subj_folder = 'prot'+ df['Protocol'][ind] + '_' + df['Type'][ind] + df['Injury'][ind] + '_' + df['Number'][ind]
+
+
+        if not os.path.exists(subj_folder):
+            os.makedirs(subj_folder)
+
+        print('-'*40)
+        print("Ploting ",str(ind)," subj "+subj_folder)
+        save_graphs_models(df['AdjMats'][ind],subj_folder,mnicoor, df['Thresholds'][ind])
+
+    os.chdir(path)
+
+    return None
+
+
+
+def gfig_parameter_vs_threshold(graphs, param, save_folder, parameter_name,norm = 0):
+#(param, thresholds, subjs, save_folder, parameter_name,normalization = 0):
     """
 
     """
+
+    if norm == 1:
+
+        graphs = pdcolum_normalization(graphs, param)
+        lowlim=-0.05
+        parameter_name = 'Normalized ' + parameter_name
+    else:
+        lowlim=-5
+
+
+
+    uplim=np.max([np.sum(np.array(row),1) for row in graphs[param]])
 
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
               '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
@@ -524,12 +579,13 @@ def gfigure_parameter_vs_threshold(param, thresholds, subjs, save_folder, parame
 
 
     labels_size=30
-    for i,y in enumerate(param):
+    for i,y in enumerate(graphs[param]):
 
 
         y_value = [j[0] for j in y]
         y_std = [j[1] for j in y]
 
+        thresholds=graphs['Thresholds'][i]
 
         fig = plt.figure(figsize=(15, 12))
         plt.errorbar(thresholds, y_value, y_std,
@@ -540,10 +596,9 @@ def gfigure_parameter_vs_threshold(param, thresholds, subjs, save_folder, parame
 
 
         plt.xlim(0, 1)
-        # plt.ylim(-3, 120)
+        plt.ylim(lowlim, uplim)
         plt.grid()
 
-        # plt.()
         plt.xticks(fontsize=labels_size*0.65)
         plt.yticks(fontsize=labels_size*0.65)
 
@@ -551,31 +606,162 @@ def gfigure_parameter_vs_threshold(param, thresholds, subjs, save_folder, parame
         plt.ylabel(parameter_name, fontsize=labels_size)
 
 
-        if subjs[i].subj_type == 'Patient':
+        if graphs['Type'][i] == 'Patient':
 
-            plt.title(parameter_name+' -- '+subjs[i].subj_type+' '+subjs[i].subj_number+', ' +subjs[i].injury+' Injury',fontsize=labels_size)
+            plt.title(graphs['Type'][i]+' '+graphs['Number'][i]+', ' +graphs['Injury'][i]+' Injury',fontsize=labels_size)
 
-            if int(subjs[i].subj_number) < 10:
-                SAVENAME= save_folder+'\\'+parameter_name+'_'+subjs[i].subj_type+'_'+subjs[i].injury+'_0'+subjs[i].subj_number+'.png'
+            parameter_name=change_char(parameter_name,' ','_')
+            if int(graphs['Number'][i]) < 10:
+                SAVENAME= save_folder+'\\'+parameter_name+'_'+graphs['Type'][i]+'_'+graphs['Injury'][i]+'_0'+graphs['Number'][i]+'.png'
             else:
-                SAVENAME= save_folder+'\\'+parameter_name+'_'+subjs[i].subj_type+'_'+subjs[i].injury+'_'+subjs[i].subj_number+'.png'
+                SAVENAME= save_folder+'\\'+parameter_name+'_'+graphs['Type'][i]+'_'+graphs['Injury'][i]+'_'+graphs['Number'][i]+'.png'
 
         else:
 
-            plt.title(parameter_name+' -- '+subjs[i].subj_type+' '+subjs[i].subj_number,fontsize=labels_size)
+            plt.title(graphs['Type'][i]+' '+graphs['Number'][i],fontsize=labels_size)
 
-            if int(subjs[i].subj_number) < 10:
-                SAVENAME= save_folder+'\\'+parameter_name+'_'+subjs[i].subj_type+'_0'+subjs[i].subj_number+'.png'
+            parameter_name=change_char(parameter_name,' ','_')
+            if int(graphs['Number'][i]) < 10:
+                SAVENAME= save_folder+'\\'+parameter_name+'_'+graphs['Type'][i]+'_0'+graphs['Number'][i]+'.png'
             else:
-                SAVENAME= save_folder+'\\'+parameter_name+'_'+subjs[i].subj_type+'_'+subjs[i].subj_number+'.png'
+                SAVENAME= save_folder+'\\'+parameter_name+'_'+graphs['Type'][i]+'_'+graphs['Number'][i]+'.png'
 
 
 
-        # plt.show()
-        fig.savefig(SAVENAME,format='png')
+        plt.show()
+        # fig.savefig(SAVENAME,format='png')
+        plt.close()
+        parameter_name=change_char(parameter_name,'_',' ')
+
+
+    print('-'*40)
+    print('All '+parameter_name+' Single Figures Saved !')
+    print('-'*40)
+
+
+
+
+def gfig_ofall_parameter_vs_threshold(graphs, param, save_folder, parameter_name,norm = 0):
+        #param, thresholds, subjs, save_folder, parameter_name,normalization = 0):
+
+    if norm == 1:
+        graphs = pdcolum_normalization(graphs, param)
+        lowlim=-0.05
+        parameter_name = 'Normalized '+parameter_name
+    else:
+        lowlim=-5
+
+    thresholds=graphs['Thresholds'][0]
+
+
+    group_by_injury={'injuryset':list(set(graphs['Injury'])),'arrays':[]}
+    for i,injury in enumerate(group_by_injury['injuryset']):
+        group_by_injury['arrays'] += [graphs[(graphs['Injury']==injury)][param].tolist()]
+    group_by_injury=pd.DataFrame(group_by_injury)
+
+    uplim=np.max([np.sum(np.array(row),1) for row in graphs[param]])
+
+
+    for index, row in group_by_injury.iterrows():
+
+        labels_size=30
+        fig = plt.figure(figsize=(15, 12))
+
+        for i,y in enumerate(row['arrays']):
+
+            y_value = [j[0] for j in y]
+            y_std = [j[1] for j in y]
+
+
+            plt.errorbar(thresholds, y_value, y_std,
+                         marker='D', markerfacecolor = 'w', markersize=8,
+                         capsize = 5, #ecolor = 'k',
+                         ls='dotted'#, color = colors[0]#,dash_capstyle	='round'
+                         )
+
+        plt.ylim(lowlim, uplim)
+        plt.xlim(0, 1)
+        plt.grid()
+
+        plt.xticks(fontsize=labels_size*0.65)
+        plt.yticks(fontsize=labels_size*0.65)
+
+        plt.xlabel('Thershold', fontsize=labels_size)
+        plt.ylabel(parameter_name, fontsize=labels_size)
+
+        if row['injuryset'] == 'X':
+            plt.title('All Volunteers',fontsize=labels_size)
+            SAVENAME=save_folder+'\\z_'+parameter_name+'_Volunteerss.png'
+        else:
+            plt.title('All Patients '+row['injuryset'],fontsize=labels_size)
+            SAVENAME=save_folder+'\\z_'+parameter_name+'_Patients'+row['injuryset']+'.png'
+
+        plt.show()
+        # fig.savefig(SAVENAME,format='png')
         plt.close()
 
-    print('-'*40)
-    print('All '+parameter_name+' Figures Saved !')
-    print('-'*40)
+
+
+def gfig_averageofall_parameter_vs_threshold(graphs, param, save_folder, parameter_name,norm = 0):
+
+
+    if norm == 1:
+        graphs = pdcolum_normalization(graphs, param)
+        parameter_name = 'Normalized '+parameter_name
+
+
+    thresholds=graphs['Thresholds'][0]
+
+
+    group_by_injury={'injuryset':list(set(graphs['Injury'])),'arrays':[]}
+    for i,injury in enumerate(group_by_injury['injuryset']):
+
+        group_by_injury['arrays'] += [np.array(graphs[(graphs['Injury']==injury)][param].tolist())]
+    group_by_injury=pd.DataFrame(group_by_injury)
+
+
+    fig = plt.figure(figsize=(15, 12))
+
+    for index, row in group_by_injury.iterrows():
+
+        aux=row['arrays']
+
+        y=[np.mean(row['arrays'][:,i,:]) for i in range(row['arrays'].shape[1])]
+        y_std=[np.std(row['arrays'][:,i,:]) for i in range(row['arrays'].shape[1])]
+
+        labels_size=30
+
+        if row['injuryset'] == 'X':
+            LABEL = "Volunteers"
+        else:
+            LABEL = 'Patients' + ' '+ row['injuryset']
+
+        plt.errorbar(thresholds, y, y_std,
+                     marker='D', markerfacecolor = 'w', markersize=8,
+                     capsize = 5, #ecolor = 'k',
+                     ls='dotted',#, color = colors[0]#,dash_capstyle	='round'
+                     label = LABEL)
+
+
+    plt.xlim(0, 1)
+    # plt.ylim(-3, 120)
+    plt.grid()
+    plt.legend(fontsize=labels_size*0.75)
+
+    plt.title('Average of the Groups',fontsize=labels_size)
+    plt.xticks(fontsize=labels_size*0.65)
+    plt.yticks(fontsize=labels_size*0.65)
+
+    plt.xlabel('Thershold', fontsize=labels_size)
+    plt.ylabel(parameter_name, fontsize=labels_size)
+
+
+    plt.show()
+
+    parameter_name=change_char(parameter_name,' ','_')
+    SAVENAME=save_folder+'\\z_'+parameter_name+'_zGroups_mean.png'
+    # fig.savefig(SAVENAME,format='png')
+    plt.close()
+
+
 
